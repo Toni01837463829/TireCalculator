@@ -4,135 +4,252 @@ from tqdm import tqdm
 import time
 
 def main() :
-    
-    pitstop_time = 0
+    pitstop_time = 30
     laps = 0
-    pits = 0
+    max_pits = 0
     top_cap = 0
     bottom_cap = 0
-    options = []
-    strategies = []
+    options = None
 
-
-    loadconifg = input('Load config? (y/n) ')
-    loadconifg = loadconifg.lower()
-    if loadconifg == 'y' :
+    try :
+        print('trying to read from configs.csv ...')
         df = readCsv()
-        laps = int(df['laps'])
-        pits = int(df['pits'])
-        if pits == 0 : pits = 0
-        else : pits += 1
-        top_cap = int(df['top_cap'])
-        bottom_cap = int(df['bottom_cap'])
-        pitstop_time = int(df['pitstop_time'])
-    else :
-        laps = int(input('Laps: '))
-        pits = int(input('Pits: '))
-        if pits == 0 : pits = 0
-        else : pits += 1
-        set_caps = input('set caps? (y/n) ')
-        set_caps = set_caps.lower()
-        if set_caps == 'y' :
-            bottom_cap = int(input('Bottom cap: '))
-            top_cap = int(input('Top cap: '))
-        else :
-            bottom_cap = 5
-            top_cap = 40
-            print(f'Using default caps {bottom_cap} and {top_cap}')
-
+        pitstop_time = int(df['pitstop_time'][0])
+        print('read successfully')
+    except Exception as e:
+        print('-----------------------------------------------------------')
+        print('Error reading configs:')
+        print(e)
+        print('Using default configs ...')
+        print('-----------------------------------------------------------')
     
-    print('your configurations:')
-    print(f'Laps: {laps}')
-    print(f'Pits: {pits}')
-    print(f'Bottom cap: {bottom_cap}')
-    print(f'Top cap: {top_cap}')
-    print(f'Pitstop time: {pitstop_time}')
-    print('-----------------------------------------------------------\n')
-    start_time = time.time()
-    # -----------------------------------------
-    # option calclation
-    # -----------------------------------------
-    print('now calculating options...')
-    if(laps // pits <= bottom_cap or laps // pits >= top_cap) :
-        print('Laps per stint not capped')
-        get_all_options(laps, pits, options)
-    else :
-        print(f'Laps per stint capped at {bottom_cap} and {top_cap}')
-        get_all_options_lap_capped(laps, pits, options, bottom_cap=bottom_cap, top_cap=top_cap)
 
-    time_to_calculate_options = time.time()
-    print('-----------------------------------------------------------')
-    print('calculated ' + str(len(options)) + ' options')
-    print(f'in {round(time_to_calculate_options-start_time, 3)} seconds ')
-    print('-----------------------------------------------------------\n')
+    tire_limit = calculate_tire_limit()
+    print (f'Calculated tire limit: {tire_limit[0]} and {tire_limit[1]}')
 
-    # -----------------------------------------
-    # option elimination
-    # -----------------------------------------
-    time_to_eliminat_duplicates = any
-    if(len(options) > 150000) :
-        print('to many options to calculate all strategies => eliminating duplicates')
-        print('this will take a while...')
-        no_duplicates = []
-        for option in tqdm(options, desc="Eliminating duplicates", unit="option"):
-            sorted_option = sorted(option)
-            if sorted_option not in no_duplicates:
-                no_duplicates.append(sorted_option)
-
-        options = no_duplicates
-        time_to_eliminat_duplicates = time.time()
-        print(f'Time to eliminate duplicates {round(time_to_eliminat_duplicates-time_to_calculate_options, 3)} seconds\n')
-    else :
-        time_to_eliminat_duplicates = time.time()
-        print('eliminating duplicates not necessary\n')
-
-    # -----------------------------------------
-    # calculating Strategies
-    # ----------------------------------------- 
-    print('-----------------------------------------------------------')
-    print('now calculating Strategies...')
-    for option in tqdm(options, desc="Processing Options", unit="option"):
-        strat = TireStrategy()
-        stints = []
-
-        for stint in range(0, len(option)) :
-            stints.append(get_best_tire_option(option[stint]))
-
-        for stint in range(0, len(stints)) :
-            if(stint != 0) :
-                strat.time += 25
-                strat.pitstops += 1
-            strat.S_laps += stints[stint].S_laps
-            strat.M_laps += stints[stint].M_laps
-            strat.H_laps += stints[stint].H_laps
-            strat.time += stints[stint].time
-        strategies.append(strat)
-
-    time_to_calculate_strategy = time.time()
-    print(f'Time to calculate all Strategies {round(time_to_calculate_strategy-time_to_eliminat_duplicates, 3)} seconds ')
-    print('-----------------------------------------------------------\n')    
+    while (True) :
+        one_or_all = input('Calculate for one pitstop or all? (o/a) | (q) to quit: ')
+        one_or_all = one_or_all.lower()
+        if one_or_all == 'q' :
+            break
+        elif one_or_all == 'o' : 
+            strategies = []
+            laps = int(input('Laps: '))
+            pits = int(input('Pits: '))
+            if pits == 0 : pits = 0
+            else : pits += 1
+            set_caps = input('set Minimum/Maximum Laps with 1 tire? (y/n) ')
+            set_caps = set_caps.lower()
+            if set_caps == 'y' :
+                bottom_cap = int(input('Minimum Laps: '))
+                top_cap = int(input('Maximum Laps: '))
+            else :
+                bottom_cap = 1
+                top_cap = laps
+                print(f'Using default caps {bottom_cap} and {top_cap}')
 
 
-    # -----------------------------------------
-    # getting best Strategy
-    # ----------------------------------------- 
-    print('***********************************************************') 
-    print('Best Stratgy:')
-    best = TireStrategy()
-    best = min(strategies, key=lambda x: x.time)
-    print('S: ' + str(best.S_laps) + ' M: ' + str(best.M_laps) + ' H: ' + str(best.H_laps) + ' Time: ' + toPrettyTime(best.time) + ' Pitstops: ' + str(best.pitstops))
-    print("When to Pit:")
-    best_option = options[strategies.index(best)]
-    print(str(best_option))
-    print('***********************************************************') 
+            print('your configurations:')
+            print(f'Laps: {laps}')
+            print(f'Pits: {pits}')
+            print(f'Bottom cap: {bottom_cap}')
+            print(f'Top cap: {top_cap}')
+            print(f'Pitstop time: {pitstop_time}')
+            print('-----------------------------------------------------------\n')
+            start_time = time.time()
+
+
+            # -----------------------------------------
+            # option calclation
+            # -----------------------------------------
+            print('now calculating options...')
+            if(laps // pits <= bottom_cap or laps // pits >= top_cap) :
+                print('Laps per stint not capped')
+                options = find_pit_combinations(laps, pits, bottom_cap, top_cap)
+            else :
+                print(f'Laps per stint capped at {bottom_cap} and {top_cap}')
+                options = find_pit_combinations(laps, pits, bottom_cap, top_cap)
+
+            time_to_calculate_options = time.time()
+            print('-----------------------------------------------------------')
+            print('calculated ' + str(len(options)) + ' options')
+            print(f'in {round(time_to_calculate_options-start_time, 3)} seconds ')
+            print('-----------------------------------------------------------\n')
+
+
+            # -----------------------------------------
+            # calculating Strategies
+            # ----------------------------------------- 
+            print('-----------------------------------------------------------')
+            print('now calculating Strategies...')
+            for option in tqdm(options, desc="Processing Options", unit="option"):
+                strat = TireStrategy()
+                stints = []
+
+                for stint in range(0, len(option)) :
+                    stints.append(get_best_tire_option(option[stint], tire_limit))
+
+                for stint in range(0, len(stints)) :
+                    if(stint != 0) :
+                        strat.time += pitstop_time
+                        strat.pitstops += 1
+                    strat.S_laps += stints[stint].S_laps
+                    strat.M_laps += stints[stint].M_laps
+                    strat.H_laps += stints[stint].H_laps
+                    strat.time += stints[stint].time
+                    if (stints[stint].S_laps != 0) :
+                        strat.stint += str(f'\nStint {stint+1}: {stints[stint].S_laps} laps with Soft')
+                    elif (stints[stint].M_laps != 0) :
+                        strat.stint += str(f'\nStint {stint+1}: {stints[stint].M_laps} laps with Medium')
+                    else :
+                        strat.stint += str(f'\nStint {stint+1}: {stints[stint].H_laps} laps with Hard')
+                    
+                strategies.append(strat)
+
+            time_to_calculate_strategy = time.time()
+            print(f'Time to calculate all Strategies {round(time_to_calculate_strategy-time_to_calculate_options, 3)} seconds ')
+            print('-----------------------------------------------------------\n')    
+
+
+            # -----------------------------------------
+            # getting best Strategy
+            # ----------------------------------------- 
+            print('***********************************************************') 
+            print(f'total time: {round(time_to_calculate_strategy-start_time, 3)} seconds ')
+
+            best = TireStrategy()
+            besttime = 9999999999999999999999
+
+            for strategy in strategies :
+                if strategy.time < besttime :
+                    best = strategy
+                    besttime = strategy.time
+
+
+            print('Best Stratgy:')
+            print(str(best))
+        else :
+            laps = int(input('Laps: '))
+            max_pits = int(input('Max Pits: '))
+            max_pits += 1
+            set_caps = input('set Minimum/Maximum Laps with 1 tire? (y/n) ')
+            set_caps = set_caps.lower()
+            if set_caps == 'y' :
+                bottom_cap = int(input('Minimum Laps: '))
+                top_cap = int(input('Maximum Laps: '))
+            else :
+                bottom_cap = 1
+                top_cap = laps
+                print(f'Using default caps {bottom_cap} and {top_cap}')
+
+
+            print('your configurations:')
+            print(f'Laps: {laps}')
+            print(f'Pits: {max_pits-1}')
+            print(f'Bottom cap: {bottom_cap}')
+            print(f'Top cap: {top_cap}')
+            print(f'Pitstop time: {pitstop_time}')
+            print('-----------------------------------------------------------\n')
+            start_time = time.time()
+
+            besttimes = []
+
+            for pits in range(1, max_pits+1) :
+                strategies = []
+                # print('===========================================================')
+                print(f'Pits {pits-1}:')
+                # print('===========================================================')
+            
+                # -----------------------------------------
+                # option calclation
+                # -----------------------------------------
+                # print('now calculating options...')
+
+                if(laps // pits <= bottom_cap or laps // pits >= top_cap) :
+                    # print('Laps per stint not capped')
+                    options = find_pit_combinations(laps, pits, 1, laps)
+                else :
+                    # print(f'Laps per stint capped at {bottom_cap} and {top_cap}')
+
+                    options = find_pit_combinations(laps, pits, bottom_cap, top_cap)
+
+                time_to_calculate_options = time.time()
+                # print('-----------------------------------------------------------')
+                # print('calculated ' + str(len(options)) + ' options')
+                # print(f'in {round(time_to_calculate_options-start_time, 3)} seconds ')
+                # print('-----------------------------------------------------------\n')
+
+
+                # -----------------------------------------
+                # calculating Strategies
+                # ----------------------------------------- 
+                # print('-----------------------------------------------------------')
+                # print('now calculating Strategies...')
+                for option in tqdm(options, desc="Processing Options", unit="option"):
+                    strat = TireStrategy()
+                    stints = []
+
+                    for stint in range(0, len(option)) :
+                        stints.append(get_best_tire_option(option[stint], tire_limit))
+
+                    for stint in range(0, len(stints)) :
+                        if(stint != 0) :
+                            strat.time += pitstop_time
+                            strat.pitstops += 1
+                        strat.S_laps += stints[stint].S_laps
+                        strat.M_laps += stints[stint].M_laps
+                        strat.H_laps += stints[stint].H_laps
+                        strat.time += stints[stint].time
+                        if (stints[stint].S_laps != 0) :
+                            strat.stint += str(f'\nStint {stint+1}: {stints[stint].S_laps} laps with Soft')
+                        elif (stints[stint].M_laps != 0) :
+                            strat.stint += str(f'\nStint {stint+1}: {stints[stint].M_laps} laps with Medium')
+                        else :
+                            strat.stint += str(f'\nStint {stint+1}: {stints[stint].H_laps} laps with Hard')
+                        
+                    strategies.append(strat)
+
+                time_to_calculate_strategy = time.time()
+                # print(f'Time to calculate all Strategies {round(time_to_calculate_strategy-time_to_calculate_options, 3)} seconds ')
+                # print('-----------------------------------------------------------\n')    
+
+
+                # -----------------------------------------
+                # getting best Strategy
+                # ----------------------------------------- 
+                best = TireStrategy()
+                besttime = 9999999999999999999999
+
+                for strategy in strategies :
+                    if strategy.time < besttime :
+                        best = strategy
+                        besttime = strategy.time
+
+
+                #print(f'Best Stratgy: with {pits} pits')
+                #print(str(best))
+                besttimes.append(best)
+
+
+            print('-----------------------------------------------------------')   
+            print('besttimes:')
+            for i in range(0, len(besttimes)) :
+                print(f'Pits {i}: {toPrettyTime(besttimes[i].time)}')
+            print('-----------------------------------------------------------')  
+            print('overall best strategy:')
+            overall_best = TireStrategy()
+            overall_best_time = 9999999999999999999999
+            for i in range(0, len(besttimes)) :
+                if besttimes[i].time < overall_best_time :
+                    overall_best_time = besttimes[i].time
+                    overall_best = besttimes[i]
+            print(overall_best) 
+            print('-----------------------------------------------------------')  
+            print(f'time to complete: {round(time.time()-start_time, 3)} seconds ')
 
 
 
 
-
-def readCsv() : 
-    df = pd.read_csv('configs.csv')
-    return df
 
 class TireStrategy : 
     def __init__(self) :
@@ -141,93 +258,70 @@ class TireStrategy :
         self.H_laps = 0
         self.time = 0
         self.pitstops = 0
+        self.stint = ''
 
     def __str__(self) :
-        return 'Soft: ' + str(self.S_laps) + ' Medium: ' + str(self.M_laps) + ' Hard: ' + str(self.H_laps) + ' Time: ' + str(self.time) + ' Pitstops: ' + str(self.pitstops)
+        return 'Soft Laps: ' + str(self.S_laps) + '\nMeduim Laps: ' + str(self.M_laps) + '\nHard Laps: ' + str(self.H_laps) + '\nTime for Race: ' + toPrettyTime(self.time) + '\nPitstops: ' + str(self.pitstops) + '\nStints: ' + self.stint
 
-
-def get_all_options_lap_capped(laps, pits, options, bottom_cap=5, top_cap=44, current_sum=0, current_combination=None):
-    if current_combination is None:
-        current_combination = []
-
-    if current_sum == laps and len(current_combination) == pits and all(num <= top_cap for num in current_combination) and all(num >= bottom_cap for num in current_combination):
-        options.append(current_combination)
-    elif current_sum < laps and len(current_combination) < pits:
-        for i in range(1, laps + 1):
-            if current_sum + i <= laps and i <= top_cap and i >= bottom_cap:  # Check if adding i exceeds the target laps and if i is less than or equal to 44
-                get_all_options_lap_capped(laps, pits, options, bottom_cap, top_cap, current_sum + i, current_combination + [i])
-
-def get_all_options(laps, pits, options, current_sum=0, current_combination=None):
-    if current_combination is None:
-        current_combination = []
-
-    if current_sum == laps and len(current_combination) == pits :
-        options.append(current_combination)
-    elif current_sum < laps and len(current_combination) < pits:
-        for i in range(1, laps + 1):
-            if current_sum + i <= laps :  # Check if adding i exceeds the target laps and if i is less than or equal to 44
-                get_all_options(laps, pits, options, current_sum + i, current_combination + [i])
-
-
-def soft(x):
-    return 118 + np.exp(0.33 * x - 2)
-def medium(x):
-    return 120 + np.exp(0.31 * x - 6.1)
-def hard(x):
-    return 122 + np.exp(0.3 * x - 9.4)
-
-def get_best_tire_option (laps):
+def get_best_tire_option(laps, tire_limits = np.array([9, 21])) :
     result = TireStrategy()
-    S = cumulative_soft(laps)
-    M = cumulative_medium(laps)
-    H = cumulative_hard(laps)
-    
-    if S < M and S < H : 
+    if laps <= tire_limits[0] :
         result.S_laps = laps
-        result.time = S
-    elif M < S and M < H :
+        result.time = np.sum(soft(np.arange(1, laps+1)))
+    elif(laps <= tire_limits[1]) :
         result.M_laps = laps
-        result.time = M
+        result.time = np.sum(medium(np.arange(1, laps+1)))
     else :
         result.H_laps = laps
-        result.time = H
+        result.time = np.sum(hard(np.arange(1, laps+1)))
+
     return result
 
-
-
-def cumulative_soft(x):
-    soft_values = [soft(i) for i in range(1, x+1)]
-    return sum(soft_values)
-
-def cumulative_medium(x):
-    medium_values = [medium(i) for i in range(1, x+1)]
-    return sum(medium_values)
-
-def cumulative_hard(x):
-    hard_values = [hard(i) for i in range(1, x+1)]
-    return sum(hard_values)
-
-def cumulative_soft1(x):
-    sum = 0
-    for i in range(1, x+1):
-        sum += soft(i)
-    return sum
-
-def cumulative_medium1(x):
-    sum = 0
-    for i in range(1, x+1):
-        sum += medium(i)
-    return sum
-
-def cumulative_hard1(x):
-    sum = 0
-    for i in range(1, x+1):
-        sum += hard(i)
-    return sum
+def soft(x):
+    return 117.6 + np.exp(0.30 * x - 2)
+def medium(x):
+    return 120 + np.exp(0.28 * x - 6.1)
+def hard(x):
+    return 121.8 + np.exp(0.26 * x - 9.2)
 
 def toPrettyTime(sek) :
-    return str(int(sek / 60)) + ':' + str(int(sek % 60))
+    return str(int(sek / 3600)) + 'h' + str(int((sek % 3600) / 60)) + 'm' + str(int(sek % 60)) + 's'
 
+def readCsv() : 
+    df = pd.read_csv('configs.csv')
+    return df
+
+def calculate_tire_limit () :
+    tire_limit = np.array([0, 0])
+    # find oout when medium is faster than soft
+    for i in range(1, 100) :
+        if medium(i) < soft(i) :
+            tire_limit[0] = i
+            break
+    # find out when hard is faster than medium
+    for i in range(1, 100) :
+        if hard(i) < medium(i) :
+            tire_limit[1] = i
+            break
+
+    return tire_limit
+    
+
+def find_pit_combinations(laps, pits, bottom_cap=1, top_cap=float('inf')):
+    def generate_combinations(current_combination, remaining_laps, remaining_pits, bottom, top):
+        if remaining_pits == 0:
+            if remaining_laps == 0:
+                combinations.append(sorted(current_combination.copy()))
+            return
+            
+        for i in range(bottom, min(remaining_laps, top) + 1):
+            current_combination.append(i)
+            generate_combinations(current_combination, remaining_laps - i, remaining_pits - 1, i, top)
+            current_combination.pop()
+
+    combinations = []
+    generate_combinations([], laps, pits, bottom_cap, top_cap)
+    return np.unique(np.array(combinations), axis=0)
 
 main()
 
