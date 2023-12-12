@@ -4,7 +4,7 @@ from tqdm import tqdm
 import time
 
 def main() :
-    pitstop_time = 30
+    pitstop_time = 100
     laps = 0
     max_pits = 0
     top_cap = 0
@@ -30,14 +30,12 @@ def main() :
     while (True) :
         one_or_all = input('Calculate for one pitstop or all? (o/a) | (q) to quit: ')
         one_or_all = one_or_all.lower()
-        if one_or_all == 'q' :
-            break
-        elif one_or_all == 'o' : 
+        if one_or_all == 'o' : 
+            
             strategies = []
             laps = int(input('Laps: '))
             pits = int(input('Pits: '))
-            if pits == 0 : pits = 0
-            else : pits += 1
+            pits += 1
             set_caps = input('set Minimum/Maximum Laps with 1 tire? (y/n) ')
             set_caps = set_caps.lower()
             if set_caps == 'y' :
@@ -63,9 +61,12 @@ def main() :
             # option calclation
             # -----------------------------------------
             print('now calculating options...')
-            if(laps // pits <= bottom_cap or laps // pits >= top_cap) :
+            if (pits == 0) :
                 print('Laps per stint not capped')
-                options = find_pit_combinations(laps, pits, bottom_cap, top_cap)
+                options = find_pit_combinations(laps, pits, 1, laps)
+            elif(laps // pits <= bottom_cap or laps // pits >= top_cap) :
+                print('Laps per stint not capped')
+                options = find_pit_combinations(laps, pits, 1, laps)
             else :
                 print(f'Laps per stint capped at {bottom_cap} and {top_cap}')
                 options = find_pit_combinations(laps, pits, bottom_cap, top_cap)
@@ -93,6 +94,7 @@ def main() :
                     if(stint != 0) :
                         strat.time += pitstop_time
                         strat.pitstops += 1
+                        strat.time_in_pit += pitstop_time
                     strat.S_laps += stints[stint].S_laps
                     strat.M_laps += stints[stint].M_laps
                     strat.H_laps += stints[stint].H_laps
@@ -128,7 +130,10 @@ def main() :
 
             print('Best Stratgy:')
             print(str(best))
-        else :
+            print('time spent in pit: ')
+            print(best.time_in_pit)
+
+        elif one_or_all == 'a' :
             laps = int(input('Laps: '))
             max_pits = int(input('Max Pits: '))
             max_pits += 1
@@ -170,7 +175,6 @@ def main() :
                     options = find_pit_combinations(laps, pits, 1, laps)
                 else :
                     # print(f'Laps per stint capped at {bottom_cap} and {top_cap}')
-
                     options = find_pit_combinations(laps, pits, bottom_cap, top_cap)
 
                 time_to_calculate_options = time.time()
@@ -196,6 +200,7 @@ def main() :
                         if(stint != 0) :
                             strat.time += pitstop_time
                             strat.pitstops += 1
+                            strat.time_in_pit += pitstop_time
                         strat.S_laps += stints[stint].S_laps
                         strat.M_laps += stints[stint].M_laps
                         strat.H_laps += stints[stint].H_laps
@@ -244,8 +249,12 @@ def main() :
                     overall_best_time = besttimes[i].time
                     overall_best = besttimes[i]
             print(overall_best) 
+            print('time spent in pit: ')
+            print(overall_best.time_in_pit)
             print('-----------------------------------------------------------')  
             print(f'time to complete: {round(time.time()-start_time, 3)} seconds ')
+        else :
+            break
 
 
 
@@ -259,6 +268,7 @@ class TireStrategy :
         self.time = 0
         self.pitstops = 0
         self.stint = ''
+        self.time_in_pit = 0
 
     def __str__(self) :
         return 'Soft Laps: ' + str(self.S_laps) + '\nMeduim Laps: ' + str(self.M_laps) + '\nHard Laps: ' + str(self.H_laps) + '\nTime for Race: ' + toPrettyTime(self.time) + '\nPitstops: ' + str(self.pitstops) + '\nStints: ' + self.stint
@@ -278,11 +288,11 @@ def get_best_tire_option(laps, tire_limits = np.array([9, 21])) :
     return result
 
 def soft(x):
-    return 117.6 + np.exp(0.30 * x - 2)
+    return 117.9 + np.exp(0.23 * x - 1.3)
 def medium(x):
-    return 120 + np.exp(0.28 * x - 6.1)
+    return 120.5 + np.exp(0.169 * x - 3.2)
 def hard(x):
-    return 121.8 + np.exp(0.26 * x - 9.2)
+    return 121.8 + np.exp(0.092 * x - 2.3)
 
 def toPrettyTime(sek) :
     return str(int(sek / 3600)) + 'h' + str(int((sek % 3600) / 60)) + 'm' + str(int(sek % 60)) + 's'
