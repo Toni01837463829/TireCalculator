@@ -288,11 +288,16 @@ def get_best_tire_option(laps, tire_limits = np.array([9, 21])) :
     return result
 
 def soft(x):
+    return 118+ 0.2*x
     return 117.9 + np.exp(0.23 * x - 1.3)
 def medium(x):
+    return 119.5 + 0.085*x
     return 120.5 + np.exp(0.169 * x - 3.2)
 def hard(x):
+    return 121.8 + 0.018*x
     return 121.8 + np.exp(0.092 * x - 2.3)
+
+
 
 def toPrettyTime(sek) :
     return str(int(sek / 3600)) + 'h' + str(int((sek % 3600) / 60)) + 'm' + str(int(sek % 60)) + 's'
