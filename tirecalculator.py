@@ -206,11 +206,11 @@ def main() :
                         strat.H_laps += stints[stint].H_laps
                         strat.time += stints[stint].time
                         if (stints[stint].S_laps != 0) :
-                            strat.stint += str(f'\nStint {stint+1}: {stints[stint].S_laps} laps with Soft')
+                            strat.stint += str(f'{stint+1})\tStint {stint+1}: {stints[stint].S_laps} laps with Soft\n')
                         elif (stints[stint].M_laps != 0) :
-                            strat.stint += str(f'\nStint {stint+1}: {stints[stint].M_laps} laps with Medium')
+                            strat.stint += str(f'{stint+1})\tStint {stint+1}: {stints[stint].M_laps} laps with Medium\n')
                         else :
-                            strat.stint += str(f'\nStint {stint+1}: {stints[stint].H_laps} laps with Hard')
+                            strat.stint += str(f'{stint+1})\tStint {stint+1}: {stints[stint].H_laps} laps with Hard\n')
                         
                     strategies.append(strat)
 
@@ -270,8 +270,8 @@ class TireStrategy :
         self.stint = ''
         self.time_in_pit = 0
 
-    def __str__(self) :
-        return 'Soft Laps: ' + str(self.S_laps) + '\nMeduim Laps: ' + str(self.M_laps) + '\nHard Laps: ' + str(self.H_laps) + '\nTime for Race: ' + toPrettyTime(self.time) + '\nPitstops: ' + str(self.pitstops) + '\nStints: ' + self.stint
+    def __str__(self) : 
+        return 'Soft Laps: ' + str(self.S_laps) + ' | Meduim Laps: ' + str(self.M_laps) + ' | Hard Laps: ' + str(self.H_laps) + '\nTime for Race: ' + toPrettyTime(self.time) + '\nPitstops: ' + str(self.pitstops) + '\nStints:\n' + self.stint
 
 def get_best_tire_option(laps, tire_limits = np.array([9, 21])) :
     result = TireStrategy()
@@ -288,13 +288,13 @@ def get_best_tire_option(laps, tire_limits = np.array([9, 21])) :
     return result
 
 def soft(x):
-    return 118+ 0.2*x
+    #return 118+ 0.2*x
     return 117.9 + np.exp(0.23 * x - 1.3)
 def medium(x):
-    return 119.5 + 0.085*x
+    #return 119.5 + 0.085*x
     return 120.5 + np.exp(0.169 * x - 3.2)
 def hard(x):
-    return 121.8 + 0.018*x
+    #return 121.8 + 0.018*x
     return 121.8 + np.exp(0.092 * x - 2.3)
 
 
