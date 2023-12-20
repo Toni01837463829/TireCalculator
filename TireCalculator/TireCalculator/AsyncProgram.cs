@@ -1,34 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using TireCalculator;
+﻿namespace TireCalculator;
 
-public class Program
+public class AsyncProgram
 {
-    public static async Task Main()
+    public static async Task AsyncMain()
     {
-        await AsyncProgram.AsyncMain();
         int pitstopTime = 30;
         int laps = 0;
         int maxPits = 0;
         int topCap = 0;
         int bottomCap = 0;
         List<int[]> options = null;
-        Console.WriteLine("--------------------- Config Reading ---------------------");
+        Console.WriteLine("Running AsyncMain ...");
         try
         {
             Console.WriteLine("trying to read from configs.csv ...");
-            var df = Utility.ReadCsv();
+            var df = await AsyncUtility.ReadCsvAsync();
             pitstopTime = Convert.ToInt32(df["pitstop_time"][0]);
             Console.WriteLine("read successfully");
         }
         catch (Exception e)
         {
             Console.WriteLine("Error reading configs:");
-            //Console.WriteLine(e);
+            // Console.WriteLine(e);
             Console.WriteLine("Using default configs ...");
         }
-        Console.WriteLine("-----------------------------------------------------------");
+         Console.WriteLine("-----------------------------------------------------------");
         var tireLimit = Utility.CalculateTireLimit();
         Console.WriteLine($"Calculated tire limit: {tireLimit[0]} and {tireLimit[1]}");
 
@@ -74,17 +70,19 @@ public class Program
                 // option calculation
                 // -----------------------------------------
                 Console.WriteLine("now calculating options...");
-
+                Task<List<int[]>> optionsTask = new Task<List<int[]>>(() => null);
                 if (pits == 0 || laps / pits <= bottomCap || laps / pits >= topCap)
                 {
                     Console.WriteLine("Laps per stint not capped");
-                    options = Utility.FindPitCombinations(laps, pits, 1, laps);
+                    optionsTask = AsyncUtility.FindPitCombinationsAsync(laps, pits, 1, laps);
                 }
                 else
                 {
                     Console.WriteLine($"Laps per stint capped at {bottomCap} and {topCap}");
-                    options = Utility.FindPitCombinations(laps, pits, bottomCap, topCap);
+                    optionsTask = AsyncUtility.FindPitCombinationsAsync(laps, pits, bottomCap, topCap);
                 }
+
+                options = optionsTask.Result;
 
                 var timeToCalculateOptions = (DateTime.Now - startTime).TotalSeconds;
                 Console.WriteLine("-----------------------------------------------------------");
@@ -100,47 +98,54 @@ public class Program
 
                 foreach (var option in options)
                 {
-                    var strat = new TireStrategy();
-                    var stints = new List<TireStrategy>();
-
+                    TireStrategy strat = new TireStrategy();
+                    List<TireStrategy> stints = new List<TireStrategy>();
+                    List<Task<TireStrategy>> stintTasks = new List<Task<TireStrategy>>();
                     for (var stint = 0; stint < option.Length; stint++)
                     {
+                        stintTasks.Add(AsyncUtility.GetBestTireOptionAsync(option[stint], tireLimit));
                         stints.Add(Utility.GetBestTireOption(option[stint], tireLimit));
                     }
+                    await Task.WhenAll(stintTasks);
+                    stints = stintTasks.Select(x => x.Result).ToList();
 
-                    foreach (var stint in stints)
+                    foreach (TireStrategy stint in stints)
                     {
-                        if (stint != stints.First())
+                        await Task.Run(() =>
                         {
-                            strat.Time += pitstopTime;
-                            strat.Pitstops++;
-                            strat.TimeInPit += pitstopTime;
-                        }
+                            if (stint != stints.First())
+                            {
+                                strat.Time += pitstopTime;
+                                strat.Pitstops++;
+                                strat.TimeInPit += pitstopTime;
+                            }
 
-                        strat.SLaps += stint.SLaps;
-                        strat.MLaps += stint.MLaps;
-                        strat.HLaps += stint.HLaps;
-                        strat.Time += stint.Time;
+                            strat.SLaps += stint.SLaps;
+                            strat.MLaps += stint.MLaps;
+                            strat.HLaps += stint.HLaps;
+                            strat.Time += stint.Time;
 
-                        if (stint.SLaps != 0)
-                        {
-                            strat.Stint += $"\nStint: {stint.SLaps} laps with Soft";
-                        }
-                        else if (stint.MLaps != 0)
-                        {
-                            strat.Stint += $"\nStint: {stint.MLaps} laps with Medium";
-                        }
-                        else
-                        {
-                            strat.Stint += $"\nStint: {stint.HLaps} laps with Hard";
-                        }
+                            if (stint.SLaps != 0)
+                            {
+                                strat.Stint += $"\nStint: {stint.SLaps} laps with Soft";
+                            }
+                            else if (stint.MLaps != 0)
+                            {
+                                strat.Stint += $"\nStint: {stint.MLaps} laps with Medium";
+                            }
+                            else
+                            {
+                                strat.Stint += $"\nStint: {stint.HLaps} laps with Hard";
+                            }
+                        });
                     }
 
                     strategies.Add(strat);
                 }
 
                 var timeToCalculateStrategy = (DateTime.Now - startTime).TotalSeconds;
-                Console.WriteLine($"Time to calculate all Strategies {Math.Round(timeToCalculateStrategy - timeToCalculateOptions, 3)} seconds ");
+                Console.WriteLine(
+                    $"Time to calculate all Strategies {Math.Round(timeToCalculateStrategy - timeToCalculateOptions, 3)} seconds ");
                 Console.WriteLine("-----------------------------------------------------------\n");
 
                 // -----------------------------------------
@@ -205,7 +210,7 @@ public class Program
                 for (var pits = 1; pits <= maxPits; pits++)
                 {
                     var strategies = new List<TireStrategy>();
-                    
+
                     Console.Write($"\rcalculating option {pits} out of {maxPits} ...\n");
                     // -----------------------------------------
                     // option calculation
@@ -218,6 +223,7 @@ public class Program
                     {
                         options = Utility.FindPitCombinations(laps, pits, bottomCap, topCap);
                     }
+
                     var timeToCalculateOptions = (DateTime.Now - startTime).TotalSeconds;
 
                     // -----------------------------------------
@@ -316,7 +322,9 @@ public class Program
             {
                 break;
             }
+            
+            
+            
         }
     }
-
 }
